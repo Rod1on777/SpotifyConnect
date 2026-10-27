@@ -1,393 +1,199 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spotify Now Playing Widget</title>
+    <title>Spotify Glass Widget</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
-        
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            background: transparent; /* Полностью прозрачный фон для OBS */
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            color: #ffffff;
-            display: flex;
-            justify-content: flex-start;
-            align-items: flex-start;
-            padding: 40px;
-            overflow: hidden;
-        }
-
-        /* Общие стили для стеклянных панелей */
-        .glass-panel {
-            background: rgba(15, 17, 23, 0.75);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 2px solid rgba(255, 255, 255, 0.1);
-            border-radius: 32px;
-            padding: 32px;
-            box-shadow: 0 16px 64px 0 rgba(0, 0, 0, 0.37);
-            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-            opacity: 1;
-            transform: translateY(0) scale(1);
-        }
-
-        .glass-panel.hidden {
-            opacity: 0;
-            transform: translateY(20px) scale(0.95);
-            pointer-events: none;
-            position: absolute;
-        }
-
-        /* --- Экран настройки (Setup Screen) --- */
-        #setup-container {
-            max-width: 500px;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        #setup-container h2 {
-            font-size: 28px;
-            color: #1DB954; /* Фирменный цвет Spotify */
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        #setup-container p {
-            font-size: 16px;
-            color: #cbd5e1;
-            line-height: 1.5;
-        }
-
-        input {
-            background: rgba(0, 0, 0, 0.2);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            padding: 16px 20px;
-            border-radius: 16px;
-            color: #fff;
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            font-size: 18px;
-            outline: none;
-            transition: border-color 0.3s ease;
-        }
-
-        input:focus {
-            border-color: #1DB954;
-        }
-
-        button {
-            background: #1DB954;
-            color: #000;
-            border: none;
-            padding: 16px 24px;
-            border-radius: 16px;
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            font-size: 18px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: transform 0.2s ease, background 0.2s ease;
-        }
-
-        button:hover {
-            background: #1ed760;
-            transform: scale(1.02);
-        }
-
-        #error-msg {
-            color: #ef4444;
-            font-size: 14px;
-            font-weight: 500;
-            display: none;
-        }
-
-        /* --- Виджет Плеера (Player Screen) --- */
-        #player-container {
-            display: flex;
-            align-items: center;
-            gap: 24px;
-            max-width: 700px;
-            animation: float 6s ease-in-out infinite;
-        }
-
-        @keyframes float {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
-        }
-
-        .album-art-container {
-            position: relative;
-            width: 120px;
-            height: 120px;
-            border-radius: 20px;
-            overflow: hidden;
-            flex-shrink: 0;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-        }
-
-        #album-art {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            transition: opacity 0.3s ease;
-        }
-
-        .track-info {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            gap: 8px;
-            overflow: hidden;
-            padding-right: 20px;
-        }
-
-        #track-name {
-            font-size: 28px;
-            font-weight: 700;
-            color: #ffffff;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
-        }
-
-        #artist-name {
-            font-size: 20px;
-            color: #a78bfa; /* Тот же приятный фиолетовый акцент, что и в предыдущем виджете */
-            font-weight: 500;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        /* --- Анимированный Эквалайзер --- */
-        .equalizer {
-            display: flex;
-            align-items: flex-end;
-            gap: 4px;
-            height: 24px;
-            margin-top: 8px;
-        }
-
-        .bar {
-            width: 6px;
-            background-color: #1DB954;
-            border-radius: 3px;
-            animation: bounce 1.2s ease-in-out infinite;
-            transform-origin: bottom;
-        }
-
-        .bar:nth-child(1) { height: 30%; animation-delay: 0.0s; }
-        .bar:nth-child(2) { height: 100%; animation-delay: 0.2s; }
-        .bar:nth-child(3) { height: 50%; animation-delay: 0.4s; }
-        .bar:nth-child(4) { height: 80%; animation-delay: 0.1s; }
-
-        @keyframes bounce {
-            0%, 100% { transform: scaleY(0.3); }
-            50% { transform: scaleY(1); }
-        }
-
-        /* Остановить анимацию, если музыка на паузе */
-        .equalizer.paused .bar {
-            animation: none;
-            transform: scaleY(0.2);
-            background-color: #64748b;
-        }
+        body { margin: 0; padding: 20px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: transparent; color: white; overflow: hidden; }
+        .widget { display: flex; align-items: center; background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 15px; padding: 15px; width: 350px; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1); transition: opacity 0.5s ease; opacity: 0; }
+        .cover { width: 60px; height: 60px; border-radius: 8px; margin-right: 15px; object-fit: cover; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+        .info { display: flex; flex-direction: column; overflow: hidden; width: 100%; }
+        .title { font-size: 16px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 5px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); }
+        .artist { font-size: 14px; color: rgba(255, 255, 255, 0.8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); }
+        .setup { background: rgba(0, 0, 0, 0.7); padding: 20px; border-radius: 10px; width: 300px; }
+        input, button { margin-top: 10px; padding: 10px; border-radius: 5px; border: none; width: 100%; box-sizing: border-box; }
+        button { background: #1DB954; color: white; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:hover { background: #1ed760; }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
 
-    <!-- Экран первичной настройки -->
-    <div id="setup-container" class="glass-panel">
-        <h2>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="#1DB954"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.24 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.84.24 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.6.18-1.2.72-1.38 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
-            Spotify Connect
-        </h2>
-        <p>Для работы виджета введите <b>Client ID</b> вашего приложения из Spotify Developer Dashboard.</p>
-        <input type="text" id="client-id-input" placeholder="Введите Client ID" autocomplete="off">
-        <div id="error-msg">Пожалуйста, введите Client ID.</div>
-        <button onclick="login()">Подключить Spotify</button>
+<div id="setup" class="setup">
+    <h3>Настройка Spotify</h3>
+    <input type="text" id="clientId" placeholder="Введите Client ID">
+    <button onclick="startAuth()">Подключить</button>
+</div>
+
+<div id="widget" class="widget hidden">
+    <img id="cover" class="cover" src="" alt="Cover">
+    <div class="info">
+        <div id="title" class="title">Загрузка...</div>
+        <div id="artist" class="artist">Spotify</div>
     </div>
+</div>
 
-    <!-- Виджет плеера -->
-    <div id="player-container" class="glass-panel hidden">
-        <div class="album-art-container">
-            <img id="album-art" src="" alt="Album Art">
-        </div>
-        <div class="track-info">
-            <div id="track-name">Загрузка...</div>
-            <div id="artist-name">Поиск трека</div>
-            <div class="equalizer" id="eq-bars">
-                <div class="bar"></div>
-                <div class="bar"></div>
-                <div class="bar"></div>
-                <div class="bar"></div>
-            </div>
-        </div>
-    </div>
+<script>
+    const redirectUri = window.location.origin + window.location.pathname;
+    const scopes = 'user-read-currently-playing';
 
-    <script>
-        // Ключи для localStorage
-        const CLIENT_ID_KEY = 'sp_client_id_overlay';
-        const TOKEN_KEY = 'sp_access_token_overlay';
-        let pollInterval = null;
+    function generateRandomString(length) {
+        let text = '';
+        const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        for (let i = 0; i < length; i++) {
+            text += possible.charAt(Math.floor(Math.random() * possible.length));
+        }
+        return text;
+    }
 
-        const setupContainer = document.getElementById('setup-container');
-        const playerContainer = document.getElementById('player-container');
-        const errorMsg = document.getElementById('error-msg');
-        const clientIdInput = document.getElementById('client-id-input');
+    async function generateCodeChallenge(codeVerifier) {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(codeVerifier);
+        const digest = await window.crypto.subtle.digest('SHA-256', data);
+        return btoa(String.fromCharCode.apply(null, [...new Uint8Array(digest)]))
+            .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    async function startAuth() {
+        const clientId = document.getElementById('clientId').value.trim();
+        if (!clientId) return alert('Пожалуйста, введите Client ID');
         
-        // Элементы UI плеера
-        const elAlbumArt = document.getElementById('album-art');
-        const elTrackName = document.getElementById('track-name');
-        const elArtistName = document.getElementById('artist-name');
-        const elEqBars = document.getElementById('eq-bars');
+        localStorage.setItem('spotify_client_id', clientId);
+        const codeVerifier = generateRandomString(128);
+        localStorage.setItem('spotify_code_verifier', codeVerifier);
+        
+        const codeChallenge = await generateCodeChallenge(codeVerifier);
+        
+        const args = new URLSearchParams({
+            response_type: 'code',
+            client_id: clientId,
+            scope: scopes,
+            redirect_uri: redirectUri,
+            code_challenge_method: 'S256',
+            code_challenge: codeChallenge
+        });
+        window.location = 'https://accounts.spotify.com/authorize?' + args;
+    }
 
-        // Инициализация при загрузке
-        window.onload = function() {
-            checkAuth();
-        };
+    async function getToken(code) {
+        const codeVerifier = localStorage.getItem('spotify_code_verifier');
+        const clientId = localStorage.getItem('spotify_client_id');
+        
+        const body = new URLSearchParams({
+            grant_type: 'authorization_code',
+            code: code,
+            redirect_uri: redirectUri,
+            client_id: clientId,
+            code_verifier: codeVerifier
+        });
 
-        function checkAuth() {
-            const hash = window.location.hash;
-            
-            // Если мы вернулись с хешем токена после авторизации
-            if (hash.includes('access_token')) {
-                const params = new URLSearchParams(hash.substring(1));
-                const token = params.get('access_token');
-                if (token) {
-                    localStorage.setItem(TOKEN_KEY, token);
-                    // Очищаем хеш из URL
-                    window.location.hash = '';
-                    startApp();
-                }
-            } 
-            // Если токен уже есть в памяти
-            else if (localStorage.getItem(TOKEN_KEY)) {
-                startApp();
-            } 
-            // Если токена нет, показываем окно настройки
-            else {
-                showSetup();
-                // Восстанавливаем Client ID, если он был сохранен ранее
-                const savedClientId = localStorage.getItem(CLIENT_ID_KEY);
-                if (savedClientId) {
-                    clientIdInput.value = savedClientId;
-                }
-            }
-        }
+        try {
+            const response = await fetch('https://accounts.spotify.com/api/token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: body
+            });
 
-        function showSetup() {
-            setupContainer.classList.remove('hidden');
-            playerContainer.classList.add('hidden');
-            if (pollInterval) clearInterval(pollInterval);
-        }
-
-        function startApp() {
-            setupContainer.classList.add('hidden');
-            // Начинаем опрашивать Spotify API
-            fetchCurrentlyPlaying();
-            pollInterval = setInterval(fetchCurrentlyPlaying, 3000);
-        }
-
-        // Функция логина (перенаправление на страницу авторизации Spotify)
-        window.login = function() {
-            const clientId = clientIdInput.value.trim();
-            if (!clientId) {
-                errorMsg.style.display = 'block';
-                return;
-            }
-            errorMsg.style.display = 'none';
-            localStorage.setItem(CLIENT_ID_KEY, clientId);
-
-            // Формируем URL для редиректа без параметров и хешей
-            const redirectUri = window.location.href.split('#')[0].split('?')[0];
-            
-            const scope = 'user-read-currently-playing';
-            const authUrl = `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}`;
-            
-            window.location.href = authUrl;
-        }
-
-        // Получение текущего трека
-        async function fetchCurrentlyPlaying() {
-            const token = localStorage.getItem(TOKEN_KEY);
-            if (!token) return;
-
-            try {
-                const response = await fetch('https://api.spotify.com/v1/me/player/currently-playing', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-
-                // Если токен истек (401)
-                if (response.status === 401) {
-                    localStorage.removeItem(TOKEN_KEY);
-                    showSetup();
-                    return;
-                }
-
-                // Если ничего не играет (204)
-                if (response.status === 204) {
-                    hidePlayerSmoothly();
-                    return;
-                }
-
-                const data = await response.json();
-
-                if (data && data.item) {
-                    updateUI(data);
-                } else {
-                    hidePlayerSmoothly();
-                }
-
-            } catch (error) {
-                console.error("Ошибка при получении данных из Spotify:", error);
-            }
-        }
-
-        function updateUI(data) {
-            const isPlaying = data.is_playing;
-            const track = data.item;
-            
-            // Если реклама или локальный файл без обложки, игнорируем или показываем заглушку
-            if (track.type !== 'track' && track.type !== 'episode') return;
-
-            // Показываем виджет
-            playerContainer.classList.remove('hidden');
-
-            // Обновляем текст
-            elTrackName.textContent = track.name;
-            elArtistName.textContent = track.artists.map(artist => artist.name).join(', ');
-
-            // Обновляем обложку
-            if (track.album && track.album.images && track.album.images.length > 0) {
-                const newImgUrl = track.album.images[0].url;
-                if (elAlbumArt.src !== newImgUrl) {
-                    elAlbumArt.src = newImgUrl;
-                }
-            }
-
-            // Управляем анимацией эквалайзера
-            if (isPlaying) {
-                elEqBars.classList.remove('paused');
+            const data = await response.json();
+            if (data.access_token) {
+                localStorage.setItem('spotify_access_token', data.access_token);
+                localStorage.setItem('spotify_refresh_token', data.refresh_token);
+                window.history.replaceState({}, document.title, redirectUri);
+                checkNowPlaying();
             } else {
-                elEqBars.classList.add('paused');
+                logout();
             }
+        } catch (e) {
+            console.error(e);
+            logout();
+        }
+    }
+
+    async function refreshToken() {
+        const refreshToken = localStorage.getItem('spotify_refresh_token');
+        const clientId = localStorage.getItem('spotify_client_id');
+        
+        if (!refreshToken) return logout();
+
+        const body = new URLSearchParams({
+            grant_type: 'refresh_token',
+            refresh_token: refreshToken,
+            client_id: clientId
+        });
+
+        const response = await fetch('https://accounts.spotify.com/api/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: body
+        });
+
+        const data = await response.json();
+        if (data.access_token) {
+            localStorage.setItem('spotify_access_token', data.access_token);
+            if (data.refresh_token) localStorage.setItem('spotify_refresh_token', data.refresh_token);
+        } else {
+            logout();
+        }
+    }
+
+    async function checkNowPlaying() {
+        document.getElementById('setup').classList.add('hidden');
+        document.getElementById('widget').classList.remove('hidden');
+
+        let accessToken = localStorage.getItem('spotify_access_token');
+        
+        try {
+            let response = await fetch('https://api.spotify.com/v1/me/player/currently-playing', {
+                headers: { 'Authorization': 'Bearer ' + accessToken }
+            });
+
+            if (response.status === 401) {
+                await refreshToken();
+                accessToken = localStorage.getItem('spotify_access_token');
+                if (!accessToken) return;
+                response = await fetch('https://api.spotify.com/v1/me/player/currently-playing', {
+                    headers: { 'Authorization': 'Bearer ' + accessToken }
+                });
+            }
+
+            if (response.status === 200) {
+                const data = await response.json();
+                if (data && data.item) {
+                    document.getElementById('title').textContent = data.item.name;
+                    document.getElementById('artist').textContent = data.item.artists.map(a => a.name).join(', ');
+                    document.getElementById('cover').src = data.item.album.images[0].url;
+                    document.getElementById('widget').style.opacity = '1';
+                } else {
+                    document.getElementById('widget').style.opacity = '0';
+                }
+            } else {
+                document.getElementById('widget').style.opacity = '0';
+            }
+        } catch (error) {
+            console.error('Error fetching track:', error);
         }
 
-        function hidePlayerSmoothly() {
-            // Если музыка выключена, плавно скрываем весь виджет, чтобы не занимал место на стриме
-            playerContainer.classList.add('hidden');
+        setTimeout(checkNowPlaying, 3000);
+    }
+
+    function logout() {
+        localStorage.clear();
+        document.getElementById('setup').classList.remove('hidden');
+        document.getElementById('widget').classList.add('hidden');
+        document.getElementById('widget').style.opacity = '0';
+    }
+
+    window.onload = () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        
+        if (code) {
+            getToken(code);
+        } else if (localStorage.getItem('spotify_access_token')) {
+            checkNowPlaying();
         }
-    </script>
+    };
+</script>
 </body>
 </html>
